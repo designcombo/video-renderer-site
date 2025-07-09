@@ -15,10 +15,10 @@ import {
 import { IFont } from "../types";
 import { groupTrackItems } from "../utils/group-items";
 import { SequenceItem } from "./sequence-item";
-import { TransitionSeries } from "@remotion/transitions";
-import { TransitionSequenceItem } from "./sequence-item-transition";
-import { Transitions } from "./transitions";
-import merge from "lodash.merge";
+import { ITrackItem, ITransition } from "@designcombo/types";
+
+import { Transitions } from "./presentations";
+import { TransitionSeries } from "../transitions";
 
 export const Composition = ({
   design,
@@ -29,7 +29,7 @@ export const Composition = ({
 }) => {
   const [handle] = useState(() => delayRender());
   const { fps } = useVideoConfig();
-  const currentFrame = useCurrentFrame();
+  const frame = useCurrentFrame();
 
   const fetchData = useCallback(async () => {
     const fonts: IFont[] = [];
@@ -60,74 +60,125 @@ export const Composition = ({
     continueRender(handle);
   }, []);
 
-  const mergedTrackItemsDeatilsMap = merge(
-    design.trackItemsMap,
-    design.trackItemDetailsMap,
-  );
+  const mergedTrackItemsDeatilsMap = design.trackItemsMap;
   const groupedItems = groupTrackItems({
     trackItemIds: design.trackItemIds,
     transitionsMap: design.transitionsMap,
     trackItemsMap: mergedTrackItemsDeatilsMap,
   });
+	const mediaItems = Object.values(mergedTrackItemsDeatilsMap).filter(
+		(item) => {
+			return item.type === "video" || item.type === "audio";
+		},
+	);
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  return (
-    <>
-      {groupedItems.map((group, index) => {
-        const item = mergedTrackItemsDeatilsMap[group.id];
-        if (group.transition) {
-          const fromItem = mergedTrackItemsDeatilsMap[group.id];
-          const toItem = mergedTrackItemsDeatilsMap[group.transition.toId];
-          const transition =
-            Transitions[group.transition.kind as keyof typeof Transitions];
+	return (
+		<>
+			{groupedItems.map((group, index) => {
+				if (group.length === 1) {
+					let active = false;
+					const transitionsTemplateMap: Record<string, ITransition> = {};
+					const item = mergedTrackItemsDeatilsMap[group[0].id];
+					const itemsTemplateMap: Record<string, ITrackItem> = {};
+					let itemsTemplateIds: string[] = [];
+					if (item.type === "composition") {
+						const data = design.structure?.find((s) => s.id === item.id);
+						itemsTemplateIds = data?.items || [];
+						for (const id in design.trackItemsMap) {
+							if (data?.items.includes(id)) {
+								itemsTemplateMap[id] = {
+									...design.trackItemsMap[id],
+								};
+							}
+						}
+					}
+					if (item.type === "template") {
+						const data = design.structure?.find((s) => s.id === item.id);
+						itemsTemplateIds = data?.items || [];
+						//if (data?.items.includes(activeIds[0])) active = true;
+						for (const id in design.trackItemsMap) {
+							if (data?.items.includes(id)) {
+								itemsTemplateMap[id] = {
+									...design.trackItemsMap[id],
+								};
+							}
+						}
+						for (const transition in design.transitionsMap) {
+							if (data?.transitions.includes(transition)) {
+								transitionsTemplateMap[transition] = design.transitionsMap[transition];
+							}
+						}
+					}
 
-          // Only render if we have all required pieces
-          if (fromItem && toItem && transition) {
-            const from = (fromItem.display.from / 1000) * fps;
-            const transitionFrames = (group.transition.duration / 1000) * fps;
-
-            const fromTransition = TransitionSequenceItem[fromItem.type](
-              fromItem,
-              {
-                fps,
-                transitionFrames: 0,
-                currentFrame,
-                isFreeze: false,
-              },
-            );
-
-            const transitionEffect = transition({
-              durationInFrames: transitionFrames,
-              ...size,
-              id: group.transition.id,
-              direction: group.transition.direction,
-            });
-
-            const toTransition = TransitionSequenceItem[toItem.type](toItem, {
-              fps,
-              transitionFrames,
-              currentFrame,
-              isFreeze: true,
-              fromX: from,
-            });
-
-            return (
-              <TransitionSeries from={from} key={index}>
-                {fromTransition}
-                {transitionEffect}
-                {toTransition}
-              </TransitionSeries>
-            );
-          }
-        }
-
-        return SequenceItem[item.type](item, {
-          fps,
-        });
-      })}
-    </>
-  );
+					return SequenceItem[item.type](item, {
+						fps,
+						active,
+						itemsTemplateIds,
+						itemsTemplateMap,
+						transitionsTemplateMap,
+						itemStructure: design.structure?.find((s) => s.id === item.id),
+						frame,
+						size,
+						isTransition: false,
+						structure: design.structure,
+						mergedTrackItemsDeatilsMap,
+						mediaItems,
+					});
+				}
+				const firstItem = mergedTrackItemsDeatilsMap[group[0].id];
+				const from = (firstItem.display.from / 1000) * fps;
+				return (
+					<TransitionSeries key={index} from={from}>
+						{group.map((item) => {
+							if (item.type === "transition") {
+								const durationInFrames = (item.duration / 1000) * fps;
+								return Transitions[item.kind]({
+									durationInFrames,
+									...size,
+									id: item.id,
+									direction: item.direction,
+								});
+							}
+						
+							const transitionsTemplateMap: Record<string, ITransition> = {};
+							const itemsTemplateMap: Record<string, ITrackItem> = {};
+							let itemsTemplateIds: string[] = [];
+							if (item.type === "template") {
+								const data = design.structure?.find((s) => s.id === item.id);
+								itemsTemplateIds = data?.items || [];
+								for (const id in design.trackItemsMap) {
+									if (data?.items.includes(id)) {
+										itemsTemplateMap[id] = {
+											...design.trackItemsMap[id],
+										};
+									}
+								}
+								for (const transition in design.transitionsMap) {
+									if (data?.transitions.includes(transition)) {
+										transitionsTemplateMap[transition] =
+											design.transitionsMap[transition];
+									}
+								}
+							}
+							return SequenceItem[item.type](
+								mergedTrackItemsDeatilsMap[item.id],
+								{
+									fps,
+									isTransition: true,
+									itemsTemplateIds,
+									itemsTemplateMap,
+									transitionsTemplateMap,
+									size,
+								},
+							);
+						})}
+					</TransitionSeries>
+				);
+			})}
+		</>
+	);
 };
