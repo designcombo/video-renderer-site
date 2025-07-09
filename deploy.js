@@ -10,7 +10,7 @@ async function deploy() {
 		timeoutInSeconds: Number(process.env.TIMEOUT || 120),
 		memorySizeInMb: 2048,
 		createCloudWatchLogGroup: true,
-		enableV5Runtime: true // update
+		//enableV5Runtime: true // update
 	});
 	console.log("LAMBDA_FUNCTION :",functionName)
 
