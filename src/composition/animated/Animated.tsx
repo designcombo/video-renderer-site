@@ -86,6 +86,9 @@ export const Animated: React.FC<AnimatedProps> = ({
 					overflow: "visible",
 					transform: animatedTransform,
 					pointerEvents: "none",
+					display: "flex",
+					justifyContent: "center",
+					alignItems: "center",
 				}}
 			>
 				{children}

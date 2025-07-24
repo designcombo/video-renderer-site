@@ -1197,8 +1197,8 @@ export default function Caption({
 					borderRadius: "16px",
 					display: relativeFrame > 0 ? "block" : "none",
 					maxWidth: "max-content",
+					padding: "8px"
 				}}
-				className="p-4"
 			>
 				{item.details.words.map((word: any, index: number) => (
 					<CaptionWord
